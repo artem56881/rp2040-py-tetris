@@ -1,10 +1,10 @@
-from machine import Pin, I2C
+from machine import Pin, I2C, freq
 import sh1106
 from time import ticks_ms, sleep
 from button_repeat import KeyRepeat
 import random
+freq(250000000)
 
-# Initialize buttons
 button_L = KeyRepeat(29, repeat_delay = 100)
 button_R = KeyRepeat(27, repeat_delay = 100)
 button_D = Pin(26, Pin.IN, Pin.PULL_UP)
@@ -12,16 +12,13 @@ button_U = KeyRepeat(7)
 button_S = KeyRepeat(5)
 button_H = KeyRepeat(6)
 
-
-game_speed = 100
+game_speed = 250
 default_game_speed = game_speed
-# Initialize I2C and display
 i2c = I2C(scl=Pin(5), sda=Pin(4), freq=400000)
 display = sh1106.SH1106_I2C(128, 64, i2c, Pin(16), 0x3c, rotate=90)
 display.sleep(False)
 display.fill(0)
 
-# Tetromino shapes
 shapes = [
     [[1, 1, 1, 1]],  # I
     [[1, 1], [1, 1]],  # O
@@ -33,11 +30,9 @@ shapes = [
     [[1, 1, 0], [0, 1, 1]]   # Z
 ]
 
-# Game grid
 grid = [[0 for _ in range(10)] for _ in range(20)]
 piece_queue = [random.choice(shapes) for _ in range(4)] # type: ignore
 
-# Current piece
 current_piece = None
 holded_piece = None
 can_hold = True
@@ -56,14 +51,9 @@ def save_score(score):
 
 save_score(90)
 
-def draw_bigger_pixels(x, y, c = 1):
-    display.fill_rect(x*scale, y*scale ,scale ,scale, 1)
-    display.fill_rect(x*scale + 1, y*scale + 1 ,scale - 2 ,scale - 2, c)
-
-    # for i in range(scale):
-    #     for j in range(scale):
-    #         display.pixel(x * scale + i, y * scale + j, c)
-
+def draw_bigger_pixels(x, y, main_color, add_color = 1):
+    display.fill_rect(x*scale, y*scale ,scale ,scale, main_color)
+    display.fill_rect(x*scale + 1, y*scale + 1 ,scale - 2 ,scale - 2, add_color)
 
 def new_piece():
     global current_piece, current_x, current_y
@@ -72,11 +62,11 @@ def new_piece():
     current_x = 4
     current_y = 0
 
-def draw_piece(y_level, c):
+def draw_piece(y_level, main_color, add_color):
     for y, row in enumerate(current_piece):
         for x, cell in enumerate(row):
             if cell:
-                draw_bigger_pixels(current_x + x, y_level + y, c)
+                draw_bigger_pixels(current_x + x, y_level + y, main_color, add_color)
 
 def find_shadow_y():
     y_level = 0
@@ -91,7 +81,6 @@ def draw_holded():
     for y, row in enumerate(holded_piece):
         for x, cell in enumerate(row):
             if cell:
-                # Draw each cell of the piece using fill_rect
                 display.fill_rect(
                     scale * 10 + 5 + x * scale,
                     5 + 16 * scale + y * scale,
@@ -100,16 +89,14 @@ def draw_holded():
                     1
                 )
 def draw_queue():
-    # Define the starting position for the queue display
-    queue_x = scale * 10 + 5  # Start a few pixels to the right of the grid
-    queue_y_start = 5  # Start a few pixels from the top
+    queue_x = scale * 10 + 5
+    queue_y_start = 5
 
     for i, piece in enumerate(piece_queue):
         # Draw each piece in the queue
         for y, row in enumerate(piece):
             for x, cell in enumerate(row):
                 if cell:
-                    # Draw each cell of the piece using fill_rect
                     display.fill_rect(
                         queue_x + x * scale,
                         queue_y_start + i * 4 * scale + y * scale,
@@ -170,10 +157,9 @@ restart_game()
 new_piece()
 draw_queue()
 start_millis = ticks_ms()
-
 while True:  
     display.fill_rect(0,0, scale * 10,scale * 20, 0)
-
+    # print(freq())
     if button_L.update():
         current_x -= 1
         if check_collision(current_y):
@@ -185,7 +171,7 @@ while True:
             current_x -= 1
             
     if button_D.value() == 0:
-        game_speed = 10
+        game_speed = 1
     else:
         game_speed = default_game_speed
         
@@ -221,11 +207,10 @@ while True:
         merge_piece()
         clear_lines()
         new_piece()
-
         display.fill_rect(scale * 10+1, 0, 64, scale * 20 - 19, 0)
         draw_queue()
-        
-        if check_collision(current_y):  # Game over
+
+        if check_collision(current_y):
             display.fill(0)
             display.text("GG", 10, 10, 1)
             display.show()
@@ -233,8 +218,8 @@ while True:
             restart_game()
             grid = [[0 for _ in range(10)] for _ in range(20)]
       
-    shadow_y = find_shadow_y()      
-    draw_grid()
-    draw_piece(shadow_y, 0)
-    draw_piece(current_y, 1)
+    shadow_y = find_shadow_y()
+    draw_grid()      
+    draw_piece(shadow_y, 1, 0)
+    draw_piece(current_y, 1, 1)
     display.show()
